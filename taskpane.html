@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>پارسیان — ویراستار هوشمند</title>
+<script>
+  if (location.search.indexOf('demo') < 0) {
+    document.write('<scr' + 'ipt src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></scr' + 'ipt>');
+  }
+</script>
+<style>
+  :root {
+    --green: #32cd32; --green-dark: #1f9d1f; --black: #1a1a1a;
+    --bg: #fafafa; --card: #ffffff; --border: #e2e2e2; --danger: #d93025;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: Vazirmatn, Tahoma, sans-serif; }
+  body { background: var(--bg); color: var(--black); font-size: 14px; }
+
+  header { display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+           background: #fff; border-bottom: 2px solid var(--green); }
+  header img { width: 38px; height: 38px; }
+  header h1 { font-size: 17px; }
+  header .sub { font-size: 11px; color: #777; }
+
+  .toolbar { display: flex; gap: 6px; padding: 10px 12px; flex-wrap: wrap;
+             border-bottom: 1px solid var(--border); background: #fff; }
+  button { border: 1px solid var(--border); background: #fff; border-radius: 6px;
+           padding: 7px 12px; cursor: pointer; font-size: 13px; transition: .15s; }
+  button:hover { border-color: var(--green); }
+  button.primary { background: var(--green); border-color: var(--green); color: #fff; font-weight: 700; }
+  button.primary:hover { background: var(--green-dark); }
+
+  .stats { padding: 8px 14px; font-size: 12px; color: #666; display: flex; justify-content: space-between; }
+
+  #issues { padding: 8px 12px 30px; }
+  .issue { background: var(--card); border: 1px solid var(--border); border-right: 4px solid var(--danger);
+           border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .issue.pattern { border-right-color: #e6a817; }
+  .issue.affix, .issue.stuck, .issue.space-in-word { border-right-color: #2b7de9; }
+  .issue .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .issue .wrong { font-size: 15px; font-weight: 700; color: var(--danger); }
+  .issue.pattern .wrong, .issue.affix .wrong { color: #b07700; }
+  .issue .msg { font-size: 11.5px; color: #777; margin-bottom: 8px; }
+  .issue .ctx { font-size: 11px; color: #aaa; margin-bottom: 8px; direction: rtl;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .suggs { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+  .suggs button { background: #f2fbf2; border-color: #bfe8bf; color: var(--green-dark); font-weight: 600; }
+  .actions { display: flex; flex-wrap: wrap; gap: 5px; }
+  .actions button { font-size: 11.5px; padding: 4px 9px; color: #555; }
+
+  .empty { text-align: center; color: #999; padding: 40px 20px; }
+  .empty img { width: 72px; opacity: .5; margin-bottom: 12px; }
+
+  #settings { display: none; padding: 14px; background: #fff; border-bottom: 1px solid var(--border); }
+  #settings label { display: block; margin: 8px 0; cursor: pointer; }
+  #settings.open { display: block; }
+
+  .toast { position: fixed; bottom: 14px; left: 14px; right: 14px; background: var(--black); color: #fff;
+           padding: 10px 14px; border-radius: 8px; font-size: 12.5px; text-align: center;
+           opacity: 0; transition: .3s; pointer-events: none; }
+  .toast.show { opacity: .95; }
+  .spin { display: inline-block; width: 13px; height: 13px; border: 2px solid #fff;
+          border-top-color: transparent; border-radius: 50%; animation: s .7s linear infinite;
+          vertical-align: -2px; margin-left: 5px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header>
+  <img src="assets/icon-64.png" alt="پارسیان">
+  <div>
+    <h1>پارسیان</h1>
+    <div class="sub">ویراستار هوشمند فارسی — نسخهٔ ۱٫۰</div>
+  </div>
+</header>
+
+<div class="toolbar">
+  <button class="primary" id="btnCheck">🔍 ویراستاری متن</button>
+  <button id="btnFixAll">✅ اصلاح خودکار همه</button>
+  <button id="btnSettings">⚙️</button>
+</div>
+
+<div id="settings">
+  <label><input type="checkbox" id="optSpell" checked> اصلاح املای واژه‌ها</label>
+  <label><input type="checkbox" id="optSpacing" checked> اصلاح فاصله‌گذاری و نقطه‌گذاری</label>
+  <label><input type="checkbox" id="optAffix" checked> تشخیص واژه‌های با پسوند و نیم‌فاصله</label>
+</div>
+
+<div class="stats"><span id="statInfo">آماده است</span><span id="statPerf"></span></div>
+
+<div id="issues">
+  <div class="empty">
+    <img src="assets/logo.png" alt="">
+    <div>برای شروع، روی «ویراستاری متن» بزنید.<br>متن سند شما بررسی و غلط‌ها پیشنهاد اصلاح می‌شوند.</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // Demo mode: when opened as demo.html, install the Word simulator first
+  if (location.search.indexOf('demo') >= 0 || location.pathname.indexOf('demo') >= 0) {
+    document.write('<script src="demo-shim.js"><\/script>');
+  }
+</script>
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var ZWNJ = '\u200c';
+  var currentIssues = [], currentText = '';
+
+  Office.onReady(function () {
+    Promise.all([
+      fetch('data/dic.json').then(r => r.json()),
+      fetch('data/verbs.json').then(r => r.json()),
+      fetch('data/exceptions.json').then(r => r.json()),
+      fetch('data/patterns.json').then(r => r.json()),
+      loadUserDictionary()
+    ]).then(function (all) {
+      ParsianEngine.loadDictionary(all[0]);
+      ParsianEngine.loadVerbs(all[1]);
+      ParsianEngine.loadExceptions(all[2]);
+      ParsianEngine.loadPatterns(all[3]);
+      document.getElementById('statInfo').textContent =
+        'واژه‌نامه: ' + ParsianEngine.dictionarySize().toLocaleString('fa-IR') + ' واژه';
+    });
+    document.getElementById('btnCheck').onclick = checkDocument;
+    document.getElementById('btnFixAll').onclick = fixAll;
+    document.getElementById('btnSettings').onclick = function () {
+      document.getElementById('settings').classList.toggle('open');
+    };
+  });
+
+  function loadUserDictionary() {
+    return new Promise(function (res) {
+      var saved = localStorage.getItem('parsian-userdict');
+      ParsianEngine.setUserWords(saved ? JSON.parse(saved) : []);
+      res();
+    });
+  }
+
+  function toast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(function () { t.classList.remove('show'); }, 2500);
+  }
+
+  function getOptions() {
+    return {
+      spell: document.getElementById('optSpell').checked,
+      spacing: document.getElementById('optSpacing').checked,
+      affix: document.getElementById('optAffix').checked
+    };
+  }
+
+  function checkDocument() {
+    var btn = document.getElementById('btnCheck');
+    btn.innerHTML = '<span class="spin"></span>در حال بررسی…';
+    Word.run(function (ctx) {
+      var body = ctx.document.body;
+      var paras = body.paragraphs.load({ items: ['text'] });
+      return ctx.sync().then(function () {
+        var full = '', map = [], pIdx = [];
+        paras.items.forEach(function (p, idx) {
+          pIdx.push({ start: full.length, index: idx });
+          full += p.text + '\n';
+        });
+        currentText = full;
+        var res = ParsianEngine.verify(full, getOptions());
+        currentIssues = res.issues;
+        document.getElementById('statPerf').textContent =
+          res.issues.length + ' مورد در ' + res.ms + ' میلی‌ثانیه';
+        renderIssues(full);
+        window.__parsianMap = pIdx;
+      });
+    }).catch(function (e) {
+      toast('خطا در خواندن سند: ' + (e.message || e));
+    }).then(function () {
+      btn.innerHTML = '🔍 ویراستاری متن';
+    });
+  }
+
+  function renderIssues(text) {
+    var box = document.getElementById('issues');
+    box.innerHTML = '';
+    if (!currentIssues.length) {
+      box.innerHTML = '<div class="empty"><div style="font-size:34px">✅</div>' +
+        '<div>هیچ غلطی پیدا نشد. متن شما سالم است!</div></div>';
+      return;
+    }
+    currentIssues.forEach(function (it, i) {
+      var div = document.createElement('div');
+      div.className = 'issue ' + it.kind;
+      var wrongTxt = it.word || it.text || text.slice(it.start, it.end);
+      var ctx = text.slice(Math.max(0, it.start - 28), it.start) + '⟦' + wrongTxt + '⟧' +
+                text.slice(it.end, it.end + 28);
+      var suggHtml = (it.suggestions || []).slice(0, 6).map(function (s) {
+        return '<button data-fix="' + i + '" data-val="' + esc(s) + '">' + esc(s) + '</button>';
+      }).join('');
+      div.innerHTML =
+        '<div class="head"><span class="wrong">' + esc(wrongTxt) + '</span></div>' +
+        '<div class="ctx">' + esc(ctx) + '</div>' +
+        '<div class="msg">' + esc(it.message) + '</div>' +
+        '<div class="suggs">' + suggHtml + '</div>' +
+        '<div class="actions">' +
+          '<button data-fix="' + i + '" data-val="' + esc(it.auto || '') + '">پذیرش</button>' +
+          '<button data-ign="1" data-i="' + i + '">نادیده گرفتن</button>' +
+          '<button data-ignall="1" data-i="' + i + '">نادیده گرفتن در کل متن</button>' +
+          '<button data-add="1" data-i="' + i + '">افزودن به واژه‌نامه</button>' +
+        '</div>';
+      box.appendChild(div);
+    });
+    box.onclick = onIssueClick;
+  }
+
+  function esc(s) { return String(s).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+  function onIssueClick(e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    var i = (b.dataset.i !== undefined && b.dataset.i !== '') ? +b.dataset.i : +b.dataset.fix;
+    if (isNaN(i) || !currentIssues[i]) return;
+    if (b.dataset.fix !== undefined && b.dataset.fix !== '' && !(b.dataset.ign || b.dataset.ignall || b.dataset.add)) {
+      applyFix(i, b.dataset.val);
+    } else if (b.dataset.ign) {
+      currentIssues.splice(i, 1); renderIssues(currentText); toast('این مورد نادیده گرفته شد');
+    } else if (b.dataset.ignall) {
+      var it = currentIssues[i];
+      var w = it.word || it.text;
+      ParsianEngine.ignoreAll(w);
+      currentIssues = ParsianEngine.verify(currentText, getOptions()).issues;
+      renderIssues(currentText); toast('«' + w + '» در کل متن نادیده گرفته شد');
+    } else if (b.dataset.add) {
+      var it2 = currentIssues[i];
+      var w2 = it2.word || it2.text;
+      ParsianEngine.addToDictionary(w2);
+      localStorage.setItem('parsian-userdict', JSON.stringify(ParsianEngine.getUserWords()));
+      currentIssues = ParsianEngine.verify(currentText, getOptions()).issues;
+      renderIssues(currentText); toast('«' + w2 + '» به واژه‌نامهٔ شخصی اضافه شد');
+    }
+  }
+
+  // replace [start,end) inside Word body by scanning paragraphs
+  function replaceInWord(start, end, newVal) {
+    var pIdx = window.__parsianMap || [];
+    var p = null;
+    for (var k = pIdx.length - 1; k >= 0; k--) {
+      if (start >= pIdx[k].start) { p = pIdx[k]; break; }
+    }
+    if (!p) return Promise.resolve();
+    return Word.run(function (ctx) {
+      var paras = ctx.document.body.paragraphs;
+      var para = paras.getItemAt(p.index);
+      ctx.load(para, 'text');
+      return ctx.sync().then(function () {
+        var full = para.text;
+        var localS = start - p.start, localE = end - p.start;
+        if (localE > full.length) { localS = Math.max(0, localS); localE = full.length; }
+        var target = full.slice(localS, localE);
+        if (!target) return ctx.sync();
+        var occurrence = full.slice(0, localS).split(target).length - 1;
+        var srch = para.search(target, { completeMatch: false, matchCase: true });
+        ctx.load(srch, 'items');
+        return ctx.sync().then(function () {
+          var item = srch.items[occurrence] || srch.items[0];
+          if (item) item.insertText(newVal, 'Replace');
+          return ctx.sync();
+        });
+      });
+    });
+  }
+
+  function applyFix(i, val) {
+    var it = currentIssues[i];
+    if (val === '' || val == null) return;
+    replaceInWord(it.start, it.end, val).then(function () {
+      // positions of remaining issues are now stale — refresh everything
+      return refreshAfterEdit();
+    }).then(function () {
+      toast('اصلاح شد: ' + val);
+    }).catch(function (e) { toast('خطا در اصلاح: ' + (e.message || e)); });
+  }
+
+  // re-read document text and re-run verification (keeps ignoreAll / user dictionary)
+  function refreshAfterEdit() {
+    return Word.run(function (ctx) {
+      var paras = ctx.document.body.paragraphs.load({ items: ['text'] });
+      return ctx.sync().then(function () {
+        var full = '', pIdx = [];
+        paras.items.forEach(function (p, idx) {
+          pIdx.push({ start: full.length, index: idx });
+          full += p.text + '\n';
+        });
+        currentText = full;
+        window.__parsianMap = pIdx;
+        currentIssues = ParsianEngine.verify(full, getOptions()).issues;
+        renderIssues(full);
+      });
+    });
+  }
+
+  // only auto-fix confident issue kinds in batch mode
+  function isConfident(it) {
+    if (['pattern', 'affix', 'stuck', 'space-in-word'].indexOf(it.kind) >= 0) return true;
+    if (it.kind === 'spell') {
+      var s = it.auto || '';
+      // confident: نیم‌فاصله fixes (می/نمی prefix) and compound joins
+      return s.indexOf('\u200c') >= 0 || s.indexOf(' ') >= 0;
+    }
+    return false;
+  }
+
+  function fixAll() {
+    if (!currentIssues.length) { toast('اول متن را بررسی کنید'); return; }
+    // apply end→start so earlier (lower) offsets stay valid — no shifting needed
+    var list = currentIssues.slice().sort(function (a, b) { return b.start - a.start; });
+    var done = 0;
+    var chain = Promise.resolve();
+    list.forEach(function (it) {
+      if (!isConfident(it)) return;
+      var val = it.auto;
+      if (!val) return;
+      chain = chain.then(function () {
+        return replaceInWord(it.start, it.end, val).then(function () { done++; });
+      });
+    });
+    chain.then(function () {
+      toast(done + ' مورد به‌طور خودکار اصلاح شد');
+      currentIssues = [];
+      renderIssues(currentText);
+      document.getElementById('statPerf').textContent = done + ' مورد اصلاح شد';
+    }).catch(function (e) { toast('خطا: ' + (e.message || e)); });
+  }
+})();
+</script>
+</body>
+</html>
